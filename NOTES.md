@@ -17,7 +17,7 @@ server/
     └── helloworld_grpc.pb.go            # ← จาก --go-grpc_out (gRPC service)
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  main()                                                          │
+│  Server main()                                                   │
 │                                                                  │
 │  ① net.Listen(":50051")  ──▶  เปิด TCP socket                    │
 │                                                                  │
@@ -30,4 +30,31 @@ server/
 │                                                                  │
 │              เมื่อ client เรียก SayHello:                           │
 │              gRPC → unmarshal → s.SayHello() → marshal → reply   │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│  Client main()                                                   │
+│                                                                  │
+│  ① context.WithTimeout(ctx, 5s)                                  │
+│                          ──▶  สร้าง ctx + deadline 5 วินาที         │
+│                               (defer cancel() เพื่อคืน resource)    │
+│                                                                  │
+│  ② insecure.NewCredentials()                                     │
+│                          ──▶  credential แบบไม่เข้ารหัส (dev only) │
+│                                                                  │
+│  ③ grpc.NewClient(":50051", WithTransportCredentials(cred))      │
+│                          ──▶  สร้าง channel (connection) ไป server │
+│                                                                  │
+│  ④ pb.NewGreeterServiceClient(conn)                              │
+│                          ──▶  สร้าง client stub จาก channel        │
+│                                                                  │
+│  ⑤ c.SayHello(ctx, &pb.HelloRequest{Name: "Bank"})              │
+│                          ──▶  เรียก RPC ผ่าน stub                  │
+│                                                                  │
+│              ภายใต้ stub (ขั้นตอนอัตโนมัติ):                         │
+│              marshal req → HTTP/2 → server                       │
+│              server SayHello() → reply                           │
+│              ← HTTP/2 ← unmarshal resp ← stub                    │
+│                                                                  │
+│  ⑥ resp.GetMessage()    ──▶  อ่านค่า "Hello, Bank" ออกมา log       │
 └──────────────────────────────────────────────────────────────────┘

@@ -25,6 +25,7 @@ go.work.sum
 # IDE / Editor
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~

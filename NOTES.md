@@ -58,3 +58,86 @@ server/
 │                                                                  │
 │  ⑥ resp.GetMessage()    ──▶  อ่านค่า "Hello, Bank" ออกมา log       │
 └──────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════
+UserService (เพิ่มใหม่) — สาธิต data types หลากหลาย + Rich Errors
+═══════════════════════════════════════════════════════════════════════
+
+▍ Data types ที่ใช้ใน user.proto
+
+  | ประเภท                       | ตัวอย่างใน proto                          |
+  | ---------------------------- | ----------------------------------------- |
+  | scalar (string/int32/bool)   | id, name, age, is_active                  |
+  | enum                         | Role { ROLE_UNSPECIFIED, ADMIN, USER, … } |
+  | repeated (list)              | repeated string tags                      |
+  | map<K, V>                    | map<string, string> metadata              |
+  | well-known type              | google.protobuf.Timestamp created_at      |
+  | google.protobuf.Empty        | return ของ DeleteUser                     |
+
+▍ Rich Error 2 รูปแบบที่สาธิต
+
+  1. errdetails.BadRequest  → ใช้ตอน validate input
+     - แนบ FieldViolations หลายตัวพร้อมกัน (1 RPC = หลาย error)
+     - client unpack ด้วย status.Details() แล้ว type-assert เป็น *BadRequest
+
+  2. errdetails.ResourceInfo → ใช้ตอนหา resource ไม่เจอ
+     - บอกว่า resource ประเภทอะไร, id อะไร, ทำไมไม่เจอ
+
+▍ ขั้นตอนการเพิ่ม service ใหม่ (template ทำซ้ำได้)
+
+  ① เขียน .proto (server/proto/user.proto + client/proto/user.proto)
+  ② run protoc → ได้ user.pb.go + user_grpc.pb.go
+  ③ implement xxxServer struct ฝัง UnimplementedXxxServer
+  ④ pb.RegisterXxxServiceServer(grpcServer, impl) ใน main()
+  ⑤ client ใช้ pb.NewXxxServiceClient(conn) สร้าง stub แล้วเรียก
+
+┌──────────────────────────────────────────────────────────────────┐
+│  UserService Server-side Validation Flow                         │
+│                                                                  │
+│  CreateUser(req)                                                 │
+│       │                                                          │
+│       ▼                                                          │
+│  validateCreateUser(req)                                         │
+│       │                                                          │
+│       ├── ตรวจ name (required, ≤ 50)                              │
+│       ├── ตรวจ email (มี @)                                       │
+│       ├── ตรวจ age (0-150)                                       │
+│       └── ตรวจ role (≠ UNSPECIFIED)                              │
+│                                                                  │
+│  ถ้ามี violation:                                                 │
+│       status.New(InvalidArgument, "validation failed")           │
+│         .WithDetails(&BadRequest{FieldViolations: [...]})        │
+│       → return err                                               │
+│                                                                  │
+│  ถ้าผ่าน:                                                         │
+│       เก็บลง sync.Map → return *User                              │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│  Client-side Rich Error Unpacking                                │
+│                                                                  │
+│  err := c.CreateUser(ctx, badReq)                                │
+│       │                                                          │
+│       ▼                                                          │
+│  st, ok := status.FromError(err)                                 │
+│       │                                                          │
+│       ├── st.Code()    → InvalidArgument                         │
+│       ├── st.Message() → "validation failed"                     │
+│       └── st.Details() → []proto.Message                         │
+│                  │                                               │
+│                  ▼ for _, d := range details                     │
+│            switch d.(type):                                      │
+│              case *BadRequest    → loop FieldViolations          │
+│              case *ResourceInfo  → log resource_type/name        │
+└──────────────────────────────────────────────────────────────────┘
+
+▍ Commands สำหรับโปรเจกต์นี้
+
+  # generate code (รันใน server/ หรือ client/)
+  protoc --go_out=. --go-grpc_out=. ./proto/user.proto
+
+  # รัน server
+  cd server && go run .
+
+  # รัน client (สาธิตทั้ง happy path + error cases)
+  cd client && go run .

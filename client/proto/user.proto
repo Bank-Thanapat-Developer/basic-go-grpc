@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+option go_package = "grpc-hello-world/tutorialpb";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ─────────────────────────────────────────────────────────────────────
+// UserService — service ใหม่ที่สาธิต data types หลากหลายของ Protobuf
+// + การ handle error แบบ rich (errdetails.BadRequest)
+// ไฟล์นี้ต้อง "เหมือนเป๊ะ" กับ server/proto/user.proto เพราะเป็น contract
+// ─────────────────────────────────────────────────────────────────────
+service UserService {
+    rpc CreateUser(CreateUserRequest) returns (User);
+    rpc GetUser(GetUserRequest) returns (User);
+    rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+    rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+}
+
+enum Role {
+    ROLE_UNSPECIFIED = 0;
+    ROLE_ADMIN       = 1;
+    ROLE_USER        = 2;
+    ROLE_GUEST       = 3;
+}
+
+message User {
+    string id                              = 1;
+    string name                            = 2;
+    string email                           = 3;
+    int32  age                             = 4;
+    bool   is_active                       = 5;
+    Role   role                            = 6;
+    repeated string tags                   = 7;
+    map<string, string> metadata           = 8;
+    google.protobuf.Timestamp created_at   = 9;
+}
+
+message CreateUserRequest {
+    string name                  = 1;
+    string email                 = 2;
+    int32  age                   = 3;
+    Role   role                  = 4;
+    repeated string tags         = 5;
+    map<string, string> metadata = 6;
+}
+
+message GetUserRequest {
+    string id = 1;
+}
+
+message ListUsersRequest {
+    Role role_filter = 1;
+}
+
+message ListUsersResponse {
+    repeated User users = 1;
+    int32 total         = 2;
+}
+
+message DeleteUserRequest {
+    string id = 1;
+}

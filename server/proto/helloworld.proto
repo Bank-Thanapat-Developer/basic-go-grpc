@@ -1,0 +1,17 @@
+syntax = "proto3"; 
+
+// ของภาษา go จะมีการกำหนดชื่อ package สำหรับ import ไปใช้
+option go_package = "grpc-hello-world/tutorialpb";
+
+
+service GreeterService {
+    rpc SayHello(HelloRequest) returns (HelloResponse);
+}
+
+message HelloRequest {
+    string name = 1;
+}
+
+message HelloResponse {
+    string message = 1;
+}
